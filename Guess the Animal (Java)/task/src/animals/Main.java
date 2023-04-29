@@ -1,7 +1,6 @@
 package animals;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
@@ -22,8 +21,8 @@ public class Main {
     private static final String AFTERNOON_GREETING = "Good afternoon!";
     private static final String EVENING_GREETING = "Good evening!";
     private static final String[] FAREWELL = {"Have a nice day!", "See you soon!", "Bye!", "See you next time!",
-                                                "See you later!", "See you later, alligator!", "Catch you later!", "Peace!",
-                                                "I'm outta here!", "Hasta la vista, baby!", "Adios, amigos!", "Chao!"};
+            "See you later!", "See you later, alligator!", "Catch you later!", "Peace!",
+            "I'm outta here!", "Hasta la vista, baby!", "Adios, amigos!", "Chao!"};
     private static final String[] CLARIFICATION_PHRASES = {"I'm not sure I caught you: was it yes or no?",
             "Funny, I still don't understand, is it yes or no?",
             "Oh, it's too complicated for me: just tell me yes or no.",
@@ -53,6 +52,18 @@ public class Main {
             I know a lot about animals.
             Let's play a game!""";
 
+    private static final String STAGE5_WELCOME_MESSAGE = "Welcome to the animal expert system!\n";
+
+    private static final String STAGE5_MENU = """
+            What do you want to do:
+                        
+            1. Play the guessing game
+            2. List of all animals
+            3. Search for an animal
+            4. Calculate statistics
+            5. Print the Knowledge Tree
+            0. Exit""";
+
     private static final String TYPE_PARAMETER_MARKER = "-type";
 
     public static void main (String[] args) {
@@ -81,8 +92,9 @@ public class Main {
             try {
                 startNode = objectMapper.readValue(knowledgeFile, Node.class);
                 gameBinaryTree = new AnimalBinaryTree(startNode);
-                System.out.println(STAGE4_MESSAGE_WITH_KNOWLEDGE);
-                System.out.println(STAGE3_THIRD_MESSAGE);
+                System.out.println(STAGE5_WELCOME_MESSAGE);
+                //System.out.println(STAGE4_MESSAGE_WITH_KNOWLEDGE);
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -90,7 +102,7 @@ public class Main {
             //Initialising game
             System.out.println(STAGE3_FIRST_MESSAGE);
             String animalFavorite = makeAnAnimal();
-            startNode = new Node(animalFavorite);
+            startNode = new Node(animalFavorite, null);
             gameBinaryTree = new AnimalBinaryTree(startNode);
             System.out.println(STAGE3_SECOND_MESSAGE);
             System.out.println(STAGE3_THIRD_MESSAGE);
@@ -103,49 +115,110 @@ public class Main {
 
         //Start the game cycle
         Scanner gameStart = new Scanner(System.in);
-        String enterPressed = gameStart.nextLine();
+        String enterPressed = null;
+        // enterPressed = gameStart.nextLine();
         boolean isGameOver = false;
+        boolean isGuessAnimalGameOver;
         Node currentNode = startNode;
         Node nextNode;
         Node newNode1;
         Node newNode2;
+        int menuPoint;
 
         while (!isGameOver) {
-            if (currentNode.isLeaf()) {
-                //case of Leaf realization
-                System.out.println("Is it " + currentNode.getValue() + "?");
-                if (acceptUserAnswerYesOrNo()) {
-                    //Animal is guessed successfully
-                } else {
-                    userMadeAnimal1 = currentNode.getValue();
-                    newNode1 = new Node(userMadeAnimal1);
-                    userMadeAnimal2 = makeAnAnimal("I give up. What animal do you have in mind?");
-                    newNode2 = new Node(userMadeAnimal2);
 
-                    currentNode.acceptAndSetUserStatement(userMadeAnimal1, userMadeAnimal2);
-                    isFirstStatementForAnimal2 = whatIsFirstStatementAbout(userMadeAnimal2);
-                    isFirstStatementForAnimal1 = !isFirstStatementForAnimal2;
-                    currentNode.transformNode(newNode1, isFirstStatementForAnimal1, newNode2);
+            menuPoint = acceptUserChoice();
 
-                    currentNode.printConclusionsStage3();
-                    System.out.println("Nice! I've learned so much about animals!");
-                }
+            if (menuPoint == 0) {
                 isGameOver = true;
-            } else {
-                //case of non Leaf realization
-                nextNode = gameBinaryTree.getNextNode(currentNode);
-                currentNode = nextNode;
-            }
-            if (isGameOver) {
-                System.out.println();
-                System.out.println("Would you like to play again?");
-                isGameOver = !acceptUserAnswerYesOrNo();
-                if (!isGameOver) {
-                    currentNode = startNode;
-                    System.out.println(STAGE3_THIRD_MESSAGE);
-                    enterPressed = gameStart.nextLine();
+            } else if (menuPoint == 1) {
+                //Menu Point 1 - Play the guessing game
+                System.out.println(STAGE3_THIRD_MESSAGE);
+                enterPressed = gameStart.nextLine();
+                isGuessAnimalGameOver = false;
+
+                while (!isGuessAnimalGameOver) {
+                    if (currentNode.isLeaf()) {
+                        //case of Leaf realization
+                        System.out.println("Is it " + currentNode.getValue() + "?");
+                        if (acceptUserAnswerYesOrNo()) {
+                            //Animal is guessed successfully
+                        } else {
+                            userMadeAnimal1 = currentNode.getValue();
+                            newNode1 = new Node(userMadeAnimal1, currentNode);
+                            userMadeAnimal2 = makeAnAnimal("I give up. What animal do you have in mind?");
+                            newNode2 = new Node(userMadeAnimal2, currentNode);
+
+                            currentNode.acceptAndSetUserStatement(userMadeAnimal1, userMadeAnimal2);
+                            isFirstStatementForAnimal2 = whatIsFirstStatementAbout(userMadeAnimal2);
+                            isFirstStatementForAnimal1 = !isFirstStatementForAnimal2;
+                            currentNode.transformNode(newNode1, isFirstStatementForAnimal1, newNode2);
+
+                            currentNode.printConclusionsStage3();
+                            System.out.println("Nice! I've learned so much about animals!");
+                        }
+                        isGuessAnimalGameOver = true;
+                    } else {
+                        //case of non Leaf realization
+                        nextNode = gameBinaryTree.getNextNode(currentNode);
+                        currentNode = nextNode;
+                    }
+                    if (isGuessAnimalGameOver) {
+                        System.out.println();
+                        System.out.println("Would you like to play again?");
+                        isGuessAnimalGameOver = !acceptUserAnswerYesOrNo();
+                        if (!isGuessAnimalGameOver) {
+                            currentNode = startNode;
+                            System.out.println(STAGE3_THIRD_MESSAGE);
+                            enterPressed = gameStart.nextLine();
+                        }
+                    }
                 }
+            } else if (menuPoint == 2) {
+                //List of all animals
+                System.out.println("""
+                        Your choice:
+                        2
+                        Here are the animals I know:""");
+                        ArrayList<String> animalsList = gameBinaryTree.animalsToList();
+                        animalsList.sort(Comparator.naturalOrder());
+                        for (String animal : animalsList) {
+                            System.out.println(" - " + animal);
+                        }
+
+            } else if (menuPoint == 3) {
+                //Search for an animal
+                System.out.println("""
+                        Your choice:
+                        3
+                        Enter the animal:""");
+                String animalToSearch = Node.removeUndefinedArticle(makeAnAnimal());
+                Node isSuchAnAnimal = gameBinaryTree.findNode(animalToSearch);
+
+                if (Objects.nonNull(isSuchAnAnimal)) {
+                    System.out.println("Facts about the " + animalToSearch + ":");
+                    gameBinaryTree.printFactsAbout(isSuchAnAnimal);
+                } else {
+                    System.out.println("No facts about the " + animalToSearch + ".");
+                }
+
+            } else if (menuPoint == 4) {
+                //Calculate statistics
+                System.out.println("The Knowledge Tree stats\n");
+                System.out.println("- root node                    It" + gameBinaryTree.getRoot().getVerb(true) + gameBinaryTree.getRoot().getStatement());
+                gameBinaryTree.updateStatistics();
+                System.out.println("- total number of nodes        " + gameBinaryTree.getNodesNumber());
+                System.out.println("- total number of animals      " + gameBinaryTree.getLeavesNumber());
+                System.out.println("- total number of statements   " + (gameBinaryTree.getNodesNumber() - gameBinaryTree.getLeavesNumber()));
+                System.out.println("- height of the tree           " + gameBinaryTree.getLeafDepth().get(gameBinaryTree.getLeafDepth().size() - 1));
+                System.out.println("- minimum animal's depth       " + gameBinaryTree.getLeafDepth().get(0));
+                System.out.printf("- average animal's depth       %.2f\n", gameBinaryTree.getAverageDepth());
+
+            } else if (menuPoint == 5) {
+                //Print the Knowledge Tree
+                gameBinaryTree.printPreOrder();
             }
+
         }
 
         sayUserBye();
@@ -160,6 +233,24 @@ public class Main {
             e.printStackTrace();
         }
 
+    }
+
+    private static int acceptUserChoice() {
+        int choice = -1;
+        boolean isChoiceCorrect = false;
+        Scanner userChoiceScanner = new Scanner(System.in);
+
+        System.out.println(STAGE5_MENU);
+
+        while (!isChoiceCorrect) {
+            choice = userChoiceScanner.nextInt();
+            if (choice < 0 || choice > 5) {
+                System.out.println("Enter please digit from 0 to 5.");
+            } else {
+                isChoiceCorrect = true;
+            }
+        }
+        return choice;
     }
 
     private static String determineFileFormat(String[] args) {
@@ -273,7 +364,7 @@ public class Main {
                 currentTime.equals(LocalTime.NOON)) {
             System.out.println(Main.MORNING_GREETING);
         } else if (currentTime.isAfter(LocalTime.NOON) && currentTime.isBefore(Main.AFTERNOON_FINISH) ||
-            currentTime.equals(Main.AFTERNOON_FINISH)) {
+                currentTime.equals(Main.AFTERNOON_FINISH)) {
             System.out.println(Main.AFTERNOON_GREETING);
         } else {
             System.out.println(Main.EVENING_GREETING);
@@ -300,11 +391,16 @@ class Node {
 
 
     //instant variables
+    @JsonBackReference
+    Node parent;
     String value;
     String statement;
     String scenarioMarkerVerb;
+    boolean isPostOrderChecked = false;
 
+    @JsonManagedReference
     Node leftNo;
+    @JsonManagedReference
     Node rightYes;
 
 
@@ -314,7 +410,8 @@ class Node {
         leftNo = null;
     }
 
-    public Node(String value) {
+    public Node(String value, Node parent) {
+        this.parent = parent;
         this.value = value;
         rightYes = null;
         leftNo = null;
@@ -357,6 +454,22 @@ class Node {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    public void setIsPostOrderChecked(boolean value) {
+        this.isPostOrderChecked = value;
+    }
+
+    public boolean getIsPostOrderChecked() {
+        return this.isPostOrderChecked;
+    }
+
+    public void setParent(Node parent) {
+        this.parent = parent;
+    }
+
+    public Node getParent() {
+        return this.parent;
     }
 
     //utility methods
@@ -411,18 +524,18 @@ class Node {
         String result = null;
 
         if ("can".equals(verb)) {
-            result = "- Can it ";
+            result = "Can it ";
         } else if ("has".equals(verb)) {
-            result = "- Does it have ";
+            result = "Does it have ";
         } else if ("is".equals(verb)) {
-            result = "- Is it ";
+            result = "Is it ";
         }
 
         return result;
     }
 
     @JsonIgnore
-    private String getVerb(boolean isTrue) {
+    String getVerb(boolean isTrue) {
         String verb = getScenarioMarkerVerb();
         String result = null;
 
@@ -451,7 +564,7 @@ class Node {
     }
 
     @JsonIgnore
-    private static String removeDot(String withDot) {
+    static String removeDot(String withDot) {
         String result;
         if (withDot.charAt(withDot.length() - 1) == '.') {
             result = withDot.substring(0, withDot.length() - 1);
@@ -462,7 +575,7 @@ class Node {
     }
 
     @JsonIgnore
-    private static String removeUndefinedArticle(String words) {
+    static String removeUndefinedArticle(String words) {
         String[] splitWords = words.split(" ");
         StringBuilder result = new StringBuilder();
         for (int i = 1; i < splitWords.length; i++) {
@@ -481,14 +594,87 @@ class Node {
         }
     }
 
+    public void printNodePreOrder(String prefix) {
+        String nextPrefixYes = null;
+        String nextPrefixNo = null;
+
+        if (!this.isLeaf()) {
+            System.out.print(prefix);
+            System.out.println(this.getQuestion());
+            if (prefix.length() == 3) {
+                nextPrefixYes = "  ├ ";
+                nextPrefixNo = "  └ ";
+            } else {
+                if (prefix.matches(".+├.+")) {
+                    nextPrefixYes = prefix.replaceFirst("├", "│├");
+                    nextPrefixNo = prefix.replaceFirst("├", "│└");
+                } else if (prefix.matches(".+└.+")) {
+                    nextPrefixYes = prefix.replaceFirst("└", " ├");
+                    nextPrefixNo = prefix.replaceFirst("└", " └");
+                }
+            }
+
+            this.getRightYes().printNodePreOrder(nextPrefixYes);
+            this.getLeftNo().printNodePreOrder(nextPrefixNo);
+
+        } else {
+            System.out.print(prefix);
+            System.out.println(this.getValue());
+        }
+    }
 }
 
 class AnimalBinaryTree {
 
     Node root;
 
+    //statistics data
+    private int nodesNumber;
+    private int leavesNumber;
+
+    ArrayList<Integer> leafDepth = new ArrayList<>();
+
+    double averageDepth;
+
     AnimalBinaryTree(Node root) {
         this.root = root;
+    }
+
+
+    public Node getRoot() {
+        return root;
+    }
+
+    public int getNodesNumber() {
+        return nodesNumber;
+    }
+
+    public void setNodesNumber(int nodesNumber) {
+        this.nodesNumber = nodesNumber;
+    }
+
+    public int getLeavesNumber() {
+        return leavesNumber;
+    }
+
+    public void setLeavesNumber(int leavesNumber) {
+        this.leavesNumber = leavesNumber;
+    }
+
+    public ArrayList<Integer> getLeafDepth() {
+        return leafDepth;
+    }
+
+    public void setLeafDepth(ArrayList<Integer> leafDepth) {
+        this.leafDepth = leafDepth;
+    }
+
+    public double getAverageDepth() {
+        return averageDepth;
+    }
+
+    public void setAverageDepth(double averageDepth) {
+        this.averageDepth = averageDepth;
     }
 
     public Node getNextNode(Node currentNode) {
@@ -500,5 +686,213 @@ class AnimalBinaryTree {
             result = currentNode.leftNo;
         }
         return result;
+    }
+
+    public void printPreOrder() {
+        String initialPrefix = " └ ";
+        this.root.printNodePreOrder(initialPrefix);
+    }
+
+    public ArrayList<String> animalsToList() {
+        ArrayList<String> resultList = new ArrayList<>();
+        Node currentNode = this.root;
+
+        while (!this.root.getIsPostOrderChecked()) {
+            if (!currentNode.getIsPostOrderChecked()) {
+                if (currentNode.isLeaf()) {
+                    resultList.add(Node.removeUndefinedArticle(currentNode.getValue()));
+                    currentNode.setIsPostOrderChecked(true);
+                } else if (!currentNode.getLeftNo().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getLeftNo();
+                } else if (!currentNode.getRightYes().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getRightYes();
+                } else {
+                    currentNode.setIsPostOrderChecked(true);
+                }
+            } else {
+                //go back to parent Node
+                currentNode = currentNode.getParent();
+            }
+            if (Objects.isNull(currentNode)) {
+                root.setIsPostOrderChecked(true);
+            }
+        }
+
+        //reset isPostOrderChecked flags for all nodes
+        currentNode = this.root;
+        while (this.root.getIsPostOrderChecked()) {
+            if (currentNode.getIsPostOrderChecked()) {
+                if (currentNode.isLeaf()) {
+                    currentNode.setIsPostOrderChecked(false);
+                } else if (currentNode.getLeftNo().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getLeftNo();
+                } else if (currentNode.getRightYes().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getRightYes();
+                } else {
+                    currentNode.setIsPostOrderChecked(false);
+                }
+            } else {
+                //go back to parent Node
+                currentNode = currentNode.getParent();
+            }
+            if (Objects.isNull(currentNode)) {
+                root.setIsPostOrderChecked(false);
+            }
+        }
+
+        return resultList;
+    }
+
+    public Node findNode(String animalToSearch) {
+        Node resultNode = null;
+        Node currentNode = this.root;
+
+        while (!this.root.getIsPostOrderChecked()) {
+            if (!currentNode.getIsPostOrderChecked()) {
+                if (currentNode.isLeaf()) {
+                    if (Node.removeUndefinedArticle(currentNode.getValue()).equals(animalToSearch)) {
+                        resultNode = currentNode;
+                    }
+                    currentNode.setIsPostOrderChecked(true);
+                } else if (!currentNode.getLeftNo().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getLeftNo();
+                } else if (!currentNode.getRightYes().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getRightYes();
+                } else {
+                    currentNode.setIsPostOrderChecked(true);
+                }
+            } else {
+                //go back to parent Node
+                currentNode = currentNode.getParent();
+            }
+            if (Objects.isNull(currentNode)) {
+                root.setIsPostOrderChecked(true);
+            }
+        }
+
+        //reset isPostOrderChecked flags for all nodes
+        currentNode = this.root;
+        while (this.root.getIsPostOrderChecked()) {
+            if (currentNode.getIsPostOrderChecked()) {
+                if (currentNode.isLeaf()) {
+                    currentNode.setIsPostOrderChecked(false);
+                } else if (currentNode.getLeftNo().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getLeftNo();
+                } else if (currentNode.getRightYes().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getRightYes();
+                } else {
+                    currentNode.setIsPostOrderChecked(false);
+                }
+            } else {
+                //go back to parent Node
+                currentNode = currentNode.getParent();
+            }
+            if (Objects.isNull(currentNode)) {
+                root.setIsPostOrderChecked(false);
+            }
+        }
+
+        return resultNode;
+    }
+
+    public void printFactsAbout(Node isSuchAnAnimal) {
+        Node currentNode = isSuchAnAnimal;
+        Node nextNode = currentNode.getParent();
+        Deque<String> facts = new ArrayDeque<>();
+
+        while (Objects.nonNull(nextNode)) {
+
+            if (currentNode.equals(nextNode.getLeftNo())) {
+                facts.push("- It" + nextNode.getVerb(false) + Node.removeDot(nextNode.getStatement()) + ".");
+            } else {
+                facts.push("- It" + nextNode.getVerb(true) + Node.removeDot(nextNode.getStatement()) + ".");
+            }
+
+            currentNode = nextNode;
+            nextNode = currentNode.getParent();
+        }
+        for (String fact : facts) {
+            System.out.println(fact);
+        }
+    }
+
+    public void updateStatistics() {
+        ArrayList<Integer> leafDepth = new ArrayList<>();
+        int nodesCounter = 0;
+        int leavesCounter = 0;
+        Node currentNode = this.root;
+
+        while (!this.root.getIsPostOrderChecked()) {
+            if (!currentNode.getIsPostOrderChecked()) {
+                if (currentNode.isLeaf()) {
+                    leavesCounter++;
+                    nodesCounter++;
+                    leafDepth.add(getNodeDepth(currentNode));
+                    currentNode.setIsPostOrderChecked(true);
+                } else if (!currentNode.getLeftNo().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getLeftNo();
+                } else if (!currentNode.getRightYes().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getRightYes();
+                } else {
+                    currentNode.setIsPostOrderChecked(true);
+                    nodesCounter++;
+                }
+            } else {
+                //go back to parent Node
+                currentNode = currentNode.getParent();
+            }
+            if (Objects.isNull(currentNode)) {
+                root.setIsPostOrderChecked(true);
+            }
+        }
+
+        //reset isPostOrderChecked flags for all nodes
+        currentNode = this.root;
+        while (this.root.getIsPostOrderChecked()) {
+            if (currentNode.getIsPostOrderChecked()) {
+                if (currentNode.isLeaf()) {
+                    currentNode.setIsPostOrderChecked(false);
+                } else if (currentNode.getLeftNo().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getLeftNo();
+                } else if (currentNode.getRightYes().getIsPostOrderChecked()) {
+                    currentNode = currentNode.getRightYes();
+                } else {
+                    currentNode.setIsPostOrderChecked(false);
+                }
+            } else {
+                //go back to parent Node
+                currentNode = currentNode.getParent();
+            }
+            if (Objects.isNull(currentNode)) {
+                root.setIsPostOrderChecked(false);
+            }
+        }
+
+        setNodesNumber(nodesCounter);
+        setLeavesNumber(leavesCounter);
+        leafDepth.sort(Comparator.naturalOrder());
+        setLeafDepth(leafDepth);
+
+        int sumOfDepths = 0;
+        for (int depth : leafDepth) {
+            sumOfDepths += depth;
+        }
+        double averageDepth = (double) sumOfDepths / leavesCounter;
+        setAverageDepth(averageDepth);
+
+
+    }
+    private Integer getNodeDepth(Node leafNode) {
+        Node currentNode = leafNode;
+        Node nextNode = currentNode.getParent();
+        int depth = 0;
+
+        while (Objects.nonNull(nextNode)) {
+            depth++;
+            currentNode = nextNode;
+            nextNode = currentNode.getParent();
+        }
+
+        return depth;
     }
 }
