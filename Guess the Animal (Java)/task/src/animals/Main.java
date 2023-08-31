@@ -12,65 +12,47 @@ import java.time.LocalTime;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import java.io.*;
 
 public class Main {
     private static final LocalTime MORNING_START = LocalTime.of(5, 0);
     private static final LocalTime AFTERNOON_FINISH = LocalTime.of(18, 0);
-    private static final String MORNING_GREETING = "Good morning!";
-    private static final String AFTERNOON_GREETING = "Good afternoon!";
-    private static final String EVENING_GREETING = "Good evening!";
-    private static final String[] FAREWELL = {"Have a nice day!", "See you soon!", "Bye!", "See you next time!",
-            "See you later!", "See you later, alligator!", "Catch you later!", "Peace!",
-            "I'm outta here!", "Hasta la vista, baby!", "Adios, amigos!", "Chao!"};
-    private static final String[] CLARIFICATION_PHRASES = {"I'm not sure I caught you: was it yes or no?",
-            "Funny, I still don't understand, is it yes or no?",
-            "Oh, it's too complicated for me: just tell me yes or no.",
-            "Could you please simply say yes or no?",
-            "Oh, no, don't try to confuse me: say yes or no."};
-    private static final Character[] VOWELS = {'a', 'e', 'i', 'o', 'u', 'y'};
-    private static final Set<Character> VOWELS_SET = Arrays.stream(VOWELS).collect(Collectors.toSet());
-    private static final String[] YES_ANSWER = {"y", "yes", "yeah", "yep", "sure", "right", "affirmative",
-            "correct", "indeed", "you bet", "exactly", "you said it"};
-    private static final Set<String> YES_ANSWER_SET = Arrays.stream(YES_ANSWER).collect(Collectors.toSet());
-    private static final String[] NO_ANSWER = {"n", "no", "no way", "nah", "nope", "negative", "i don't think so", "yeah no"};
-    private static final Set<String> NO_ANSWER_SET = Arrays.stream(NO_ANSWER).collect(Collectors.toSet());
-
-    private static final String STAGE3_FIRST_MESSAGE = """
-            I want to learn about animals.
-            Which animal do you like most?""";
-    private static final String STAGE3_SECOND_MESSAGE = """
-            Wonderful! I've learned so much about animals!
-            Let's play a game!""";
-
-
-    private static final String STAGE3_THIRD_MESSAGE = """
-           You think of an animal, and I guess it.
-           Press enter when you're ready.""";
-
-    private static final String STAGE4_MESSAGE_WITH_KNOWLEDGE = """
-            I know a lot about animals.
-            Let's play a game!""";
-
-    private static final String STAGE5_WELCOME_MESSAGE = "Welcome to the animal expert system!\n";
-
-    private static final String STAGE5_MENU = """
-            What do you want to do:
-                        
-            1. Play the guessing game
-            2. List of all animals
-            3. Search for an animal
-            4. Calculate statistics
-            5. Print the Knowledge Tree
-            0. Exit""";
-
     private static final String TYPE_PARAMETER_MARKER = "-type";
+
+    private static String[] clarificationPhrases;
+
+    private static String languageSelected;
+
+    private static PropertyResourceBundle messagesBundle = null;
+
+    private static PropertyResourceBundle patternsBundle = null;
 
     public static void main (String[] args) {
 
+        //determine selected language
+        if ("eo".equalsIgnoreCase(Locale.getDefault().getLanguage())) {
+            languageSelected = "eo";
+        } else {
+            languageSelected = "en";
+        }
+
+        //determine file format and forming file name for loading and saving knowledge tree
+        String pathToProperties = "Guess the Animal (Java)\\task\\src\\main\\resources\\";
         String fileFormat = determineFileFormat(args);
-        String fileName = "animals.".concat(fileFormat);
-        File knowledgeFile = new File(fileName);
+        String knowledgeFileName;
+        String messagesFileName;
+        String patternsFileName;
+        if ("en".equals(languageSelected)) {
+            knowledgeFileName = "animals.".concat(fileFormat);
+            messagesFileName = pathToProperties.concat("messages.properties");
+            patternsFileName = pathToProperties.concat("patterns.properties");
+        } else {
+            knowledgeFileName = "animals_".concat(languageSelected).concat(".").concat(fileFormat);
+            messagesFileName = pathToProperties.concat("messages_eo.properties");
+            patternsFileName = pathToProperties.concat("patterns_eo.properties");
+        }
+
+        File knowledgeFile = new File(knowledgeFileName);
 
         ObjectMapper objectMapper;
         if ("json".equals(fileFormat)) {
@@ -81,31 +63,46 @@ public class Main {
             objectMapper = new YAMLMapper();
         }
 
+        try {
+            messagesBundle = new PropertyResourceBundle(new BufferedReader(new FileReader(messagesFileName)));
+            patternsBundle = new PropertyResourceBundle(new BufferedReader(new FileReader(patternsFileName)));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        clarificationPhrases = messagesBundle.getString("ask.again").split("\f");
+
         //greeting user corresponding to the local time
         LocalTime currentTime = LocalTime.now();
         greetUser(currentTime);
 
+        //declaring start node object and game binary tree object
         Node startNode = null;
         AnimalBinaryTree gameBinaryTree = null;
 
+        //Initialising game
         if (knowledgeFile.exists()) {
+            //case for existing knowledge file
             try {
                 startNode = objectMapper.readValue(knowledgeFile, Node.class);
                 gameBinaryTree = new AnimalBinaryTree(startNode);
-                System.out.println(STAGE5_WELCOME_MESSAGE);
-                //System.out.println(STAGE4_MESSAGE_WITH_KNOWLEDGE);
+                System.out.println(messagesBundle.getString("welcome"));
 
             } catch (IOException e) {
                 e.printStackTrace();
             }
         } else {
-            //Initialising game
-            System.out.println(STAGE3_FIRST_MESSAGE);
+            //Initialising game from zero, i.e. nor existing knowledge file
+            System.out.println(messagesBundle.getString("animal.wantLearn"));
+            System.out.println(messagesBundle.getString("animal.askFavorite"));
             String animalFavorite = makeAnAnimal();
             startNode = new Node(animalFavorite, null);
             gameBinaryTree = new AnimalBinaryTree(startNode);
-            System.out.println(STAGE3_SECOND_MESSAGE);
-            System.out.println(STAGE3_THIRD_MESSAGE);
+            System.out.print(getRandomMember(messagesBundle.getString("animal.nice").split("\f")));
+            System.out.println(messagesBundle.getString("animal.learnedMuch"));
+            System.out.println(messagesBundle.getString("game.letsPlay"));
+            System.out.println(messagesBundle.getString("game.think"));
+            System.out.println(messagesBundle.getString("game.enter"));
         }
 
         String userMadeAnimal1;
@@ -133,20 +130,23 @@ public class Main {
                 isGameOver = true;
             } else if (menuPoint == 1) {
                 //Menu Point 1 - Play the guessing game
-                System.out.println(STAGE3_THIRD_MESSAGE);
+                System.out.println(messagesBundle.getString("game.think"));
+                System.out.println(messagesBundle.getString("game.enter"));
                 enterPressed = gameStart.nextLine();
                 isGuessAnimalGameOver = false;
 
                 while (!isGuessAnimalGameOver) {
                     if (currentNode.isLeaf()) {
                         //case of Leaf realization
-                        System.out.println("Is it " + currentNode.getValue() + "?");
+
+                        System.out.println(messagesBundle.getString("game.isIt") + currentNode.getValue() + "?");
+
                         if (acceptUserAnswerYesOrNo()) {
                             //Animal is guessed successfully
                         } else {
                             userMadeAnimal1 = currentNode.getValue();
                             newNode1 = new Node(userMadeAnimal1, currentNode);
-                            userMadeAnimal2 = makeAnAnimal("I give up. What animal do you have in mind?");
+                            userMadeAnimal2 = makeAnAnimal(messagesBundle.getString("game.giveUp"));
                             newNode2 = new Node(userMadeAnimal2, currentNode);
 
                             currentNode.acceptAndSetUserStatement(userMadeAnimal1, userMadeAnimal2);
@@ -155,7 +155,9 @@ public class Main {
                             currentNode.transformNode(newNode1, isFirstStatementForAnimal1, newNode2);
 
                             currentNode.printConclusionsStage3();
-                            System.out.println("Nice! I've learned so much about animals!");
+
+                            System.out.println(getRandomMember(messagesBundle.getString("animal.nice").split("\f")) +
+                                    messagesBundle.getString("animal.learnedMuch"));
                         }
                         isGuessAnimalGameOver = true;
                     } else {
@@ -165,54 +167,60 @@ public class Main {
                     }
                     if (isGuessAnimalGameOver) {
                         System.out.println();
-                        System.out.println("Would you like to play again?");
+                        System.out.println(getRandomMember(messagesBundle.getString("game.again").split("\f")));
                         isGuessAnimalGameOver = !acceptUserAnswerYesOrNo();
                         if (!isGuessAnimalGameOver) {
                             currentNode = startNode;
-                            System.out.println(STAGE3_THIRD_MESSAGE);
+                            System.out.println(messagesBundle.getString("game.think"));
+                            System.out.println(messagesBundle.getString("game.enter"));
                             enterPressed = gameStart.nextLine();
                         }
                     }
                 }
             } else if (menuPoint == 2) {
                 //List of all animals
-                System.out.println("""
-                        Your choice:
-                        2
-                        Here are the animals I know:""");
-                        ArrayList<String> animalsList = gameBinaryTree.animalsToList();
-                        animalsList.sort(Comparator.naturalOrder());
-                        for (String animal : animalsList) {
-                            System.out.println(" - " + animal);
-                        }
+
+                System.out.println(messagesBundle.getString("user.choice"));
+                System.out.println("2");
+                System.out.println(messagesBundle.getString("tree.list.animals"));
+
+                ArrayList<String> animalsList = gameBinaryTree.animalsToList();
+                animalsList.sort(Comparator.naturalOrder());
+                for (String animal : animalsList) {
+                    System.out.println(" - " + animal);
+                }
 
             } else if (menuPoint == 3) {
                 //Search for an animal
-                System.out.println("""
-                        Your choice:
-                        3
-                        Enter the animal:""");
+
+                System.out.println(messagesBundle.getString("user.choice"));
+                System.out.println("3");
+                System.out.println(messagesBundle.getString("animal.prompt"));
+
                 String animalToSearch = Node.removeUndefinedArticle(makeAnAnimal());
                 Node isSuchAnAnimal = gameBinaryTree.findNode(animalToSearch);
 
                 if (Objects.nonNull(isSuchAnAnimal)) {
-                    System.out.println("Facts about the " + animalToSearch + ":");
+                    System.out.printf(messagesBundle.getString("tree.search.facts") + "\n", animalToSearch);
                     gameBinaryTree.printFactsAbout(isSuchAnAnimal);
                 } else {
-                    System.out.println("No facts about the " + animalToSearch + ".");
+                    System.out.printf(messagesBundle.getString("tree.search.noFacts") + "\n", animalToSearch);
                 }
 
             } else if (menuPoint == 4) {
                 //Calculate statistics
-                System.out.println("The Knowledge Tree stats\n");
-                System.out.println("- root node                    It" + gameBinaryTree.getRoot().getVerb(true) + gameBinaryTree.getRoot().getStatement());
+                System.out.println(messagesBundle.getString("tree.stats.title") + "\n");
+                System.out.printf(messagesBundle.getString("tree.stats.root") + "\n",
+                        patternsBundle.getString("pattern.it.capital") +
+                                gameBinaryTree.getRoot().getVerb(true) + gameBinaryTree.getRoot().getStatement());
+
                 gameBinaryTree.updateStatistics();
-                System.out.println("- total number of nodes        " + gameBinaryTree.getNodesNumber());
-                System.out.println("- total number of animals      " + gameBinaryTree.getLeavesNumber());
-                System.out.println("- total number of statements   " + (gameBinaryTree.getNodesNumber() - gameBinaryTree.getLeavesNumber()));
-                System.out.println("- height of the tree           " + gameBinaryTree.getLeafDepth().get(gameBinaryTree.getLeafDepth().size() - 1));
-                System.out.println("- minimum animal's depth       " + gameBinaryTree.getLeafDepth().get(0));
-                System.out.printf("- average animal's depth       %.2f\n", gameBinaryTree.getAverageDepth());
+                System.out.printf(messagesBundle.getString("tree.stats.nodes") + "\n", gameBinaryTree.getNodesNumber());
+                System.out.printf(messagesBundle.getString("tree.stats.animals") + "\n", gameBinaryTree.getLeavesNumber());
+                System.out.printf(messagesBundle.getString("tree.stats.statements") + "\n", (gameBinaryTree.getNodesNumber() - gameBinaryTree.getLeavesNumber()));
+                System.out.printf(messagesBundle.getString("tree.stats.height") + "\n", gameBinaryTree.getLeafDepth().get(gameBinaryTree.getLeafDepth().size() - 1));
+                System.out.printf(messagesBundle.getString("tree.stats.minimum") + "\n", gameBinaryTree.getLeafDepth().get(0));
+                System.out.printf(messagesBundle.getString("tree.stats.average") + "\n", gameBinaryTree.getAverageDepth());
 
             } else if (menuPoint == 5) {
                 //Print the Knowledge Tree
@@ -233,6 +241,25 @@ public class Main {
             e.printStackTrace();
         }
 
+    }  //end of main method
+
+    public static PropertyResourceBundle getMessagesBundle() {
+        return messagesBundle;
+    }
+
+    public static PropertyResourceBundle getPatternsBundle() {
+        return patternsBundle;
+    }
+
+    public static String getLanguageSelected() {
+        return languageSelected;
+    }
+
+    private static String getRandomMember(String[] stringArray) {
+        int arraySize = stringArray.length;
+        Random random = new Random();
+        int index = random.nextInt(arraySize);
+        return stringArray[index];
     }
 
     private static int acceptUserChoice() {
@@ -240,12 +267,19 @@ public class Main {
         boolean isChoiceCorrect = false;
         Scanner userChoiceScanner = new Scanner(System.in);
 
-        System.out.println(STAGE5_MENU);
+        System.out.println(messagesBundle.getString("menu.property.title"));
+        System.out.println();
+        System.out.println("1. " + messagesBundle.getString("menu.entry.play"));
+        System.out.println("2. " + messagesBundle.getString("menu.entry.list"));
+        System.out.println("3. " + messagesBundle.getString("menu.entry.search"));
+        System.out.println("4. " + messagesBundle.getString("menu.entry.statistics"));
+        System.out.println("5. " + messagesBundle.getString("menu.entry.print"));
+        System.out.println("0. " + messagesBundle.getString("menu.property.exit"));
 
         while (!isChoiceCorrect) {
             choice = userChoiceScanner.nextInt();
             if (choice < 0 || choice > 5) {
-                System.out.println("Enter please digit from 0 to 5.");
+                System.out.println(messagesBundle.getString("menu.property.error"));
             } else {
                 isChoiceCorrect = true;
             }
@@ -265,47 +299,35 @@ public class Main {
         return result;
     }
 
-
     private static boolean whatIsFirstStatementAbout(String userMadeAnimal) {
         boolean result;
-        System.out.println("Is the statement correct for " + userMadeAnimal + "?");
+        System.out.printf(messagesBundle.getString("game.isCorrect"), userMadeAnimal);
         result = acceptUserAnswerYesOrNo();
         return result;
     }
 
-
     static boolean acceptUserAnswerYesOrNo() {
 
         Scanner acceptUserAnswerScanner = new Scanner(System.in);
-        Random clarification = new Random();
         boolean isAnswerRecognised = false;
-        String userAnswer = "";
+        String userAnswer = null;
         while (!isAnswerRecognised) {
             userAnswer = acceptUserAnswerScanner.nextLine().toLowerCase();
-            if (userAnswer.endsWith(".") || userAnswer.endsWith("!")) {
-                userAnswer = userAnswer.substring(0, userAnswer.length() - 1);
-            }
-            if (YES_ANSWER_SET.contains(userAnswer.toLowerCase().trim())) {
+
+            if (userAnswer.toLowerCase().trim().matches(patternsBundle.getString("positiveAnswer.isCorrect"))) {
                 userAnswer = "Yes";
                 isAnswerRecognised = true;
-            } else if (NO_ANSWER_SET.contains(userAnswer.toLowerCase().trim())) {
+            } else if (userAnswer.toLowerCase().trim().matches(patternsBundle.getString("negativeAnswer.isCorrect"))) {
                 userAnswer = "No";
                 isAnswerRecognised = true;
             } else {
-                System.out.println(Main.CLARIFICATION_PHRASES[clarification.nextInt(Main.CLARIFICATION_PHRASES.length)]);
+                System.out.println(getRandomMember(clarificationPhrases));
             }
         }
-
-        /* Stage 1 part
-        System.out.println("You answered: " + userAnswer);
-        */
 
         return "Yes".equals(userAnswer);
     }
 
-    /*
-    Method for stage 2 of project;
-     */
     private static String makeAnAnimal(String message) {
         System.out.println(message);
         Scanner makingAnimalScanner = new Scanner(System.in);
@@ -313,6 +335,7 @@ public class Main {
         animal = checkOrTransformToFormat(animal);
         return animal;
     }
+
 
     private static String makeAnAnimal() {
         Scanner makingAnimalScanner = new Scanner(System.in);
@@ -322,52 +345,55 @@ public class Main {
     }
 
     private static String checkOrTransformToFormat(String animal) {
-        String[] userInput = animal.split(" ");
-        StringBuilder animalFormatted = new StringBuilder();
-        if ("a".equals(userInput[0]) || "an".equals(userInput[0])) {
-            animalFormatted.append(animal);
-        } else {
-            animalFormatted = addUndefinedArticle(userInput);
+        String animalFormatted = animal;
+        if (!animal.matches(patternsBundle.getString("animal.isCorrect"))) {
+            animalFormatted = addUndefinedArticle(animal);
         }
-        return animalFormatted.toString().trim();
+        return animalFormatted;
     }
 
-    private static StringBuilder addUndefinedArticle(String[] userInput) {
-        StringBuilder formattedUserInput = new StringBuilder();
-        if ("the".equals(userInput[0])) {
-            if (Main.VOWELS_SET.contains(userInput[1].charAt(0))) {
-                userInput[0] = "an";
-            } else {
-                userInput[0] = "a";
-            }
-        } else {
-            if (Main.VOWELS_SET.contains(userInput[0].charAt(0))) {
-                formattedUserInput.append("an");
-            } else {
-                formattedUserInput.append("a");
-            }
+    private static String addUndefinedArticle(String userInput) {
+        String formattedUserInput = null;
+
+        userInput = removeDefinedArticle(userInput);
+
+        if (userInput.matches(patternsBundle.getString("animal.1.pattern"))) {
+            formattedUserInput = userInput.replaceFirst(patternsBundle.getString("animal.1.pattern"), patternsBundle.getString("animal.1.replace"));
+        } else if (patternsBundle.containsKey("animal.2.pattern") && userInput.matches(patternsBundle.getString("animal.2.pattern"))) {
+            formattedUserInput = userInput.replaceFirst(patternsBundle.getString("animal.2.pattern"), patternsBundle.getString("animal.2.replace"));
+        } else if (patternsBundle.containsKey("animal.3.pattern") && userInput.matches(patternsBundle.getString("animal.3.pattern"))) {
+            formattedUserInput = userInput.replaceFirst(patternsBundle.getString("animal.3.pattern"), patternsBundle.getString("animal.3.replace"));
         }
-        for (String word : userInput) {
-            formattedUserInput.append(" ").append(word);
-        }
+
         return formattedUserInput;
     }
 
+    private static String removeDefinedArticle(String userInput) {
+        String formattedString;
+
+        if (userInput.matches(patternsBundle.getString("animal.0.pattern"))) {
+            formattedString = userInput.replaceFirst(patternsBundle.getString("animal.0.pattern"), patternsBundle.getString("animal.0.replace"));
+        } else {
+            formattedString = userInput;
+        }
+
+        return formattedString;
+    }
+
     private static void sayUserBye() {
-        Random farewell = new Random();
-        System.out.println(Main.FAREWELL[farewell.nextInt(Main.FAREWELL.length)]);
+        System.out.println(getRandomMember(messagesBundle.getString("farewell").split("\f")));
     }
 
     private static void greetUser(LocalTime currentTime) {
         if (currentTime.equals(Main.MORNING_START) ||
                 (currentTime.isAfter(Main.MORNING_START) && currentTime.isBefore(LocalTime.NOON)) ||
                 currentTime.equals(LocalTime.NOON)) {
-            System.out.println(Main.MORNING_GREETING);
+            System.out.println(messagesBundle.getString("greeting.morning"));
         } else if (currentTime.isAfter(LocalTime.NOON) && currentTime.isBefore(Main.AFTERNOON_FINISH) ||
                 currentTime.equals(Main.AFTERNOON_FINISH)) {
-            System.out.println(Main.AFTERNOON_GREETING);
+            System.out.println(messagesBundle.getString("greeting.afternoon"));
         } else {
-            System.out.println(Main.EVENING_GREETING);
+            System.out.println(messagesBundle.getString("greeting.evening"));
         }
         System.out.println();
     }
@@ -378,16 +404,10 @@ public class Main {
 class Node {
 
     //constants
-    private static final String INSTRUCTION1 = "The sentence should be of the format: 'It can/has/is ...'.";
-    private static final String INSTRUCTION1_EXAMPLES = """
-                The examples of a statement:
-                 - It can fly
-                 - It has horn
-                 - It is a mammal""";
 
-    private static final Pattern PATTERN_CAN = Pattern.compile("It can .+", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_HAS = Pattern.compile("It has .+", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_IS = Pattern.compile("It is .+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_CAN = Pattern.compile(Main.getPatternsBundle().getString("pattern.can"), Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_HAS = Pattern.compile(Main.getPatternsBundle().getString("pattern.has"), Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_IS = Pattern.compile(Main.getPatternsBundle().getString("pattern.is"), Pattern.CASE_INSENSITIVE);
 
 
     //instant variables
@@ -472,7 +492,9 @@ class Node {
         return this.parent;
     }
 
-    //utility methods
+    /////////////////////////////////UTILITY METHODS///////////////////////
+
+
     void acceptAndSetUserStatement(String animal1, String animal2) {
 
         Scanner firstStatementScanner = new Scanner(System.in);
@@ -483,8 +505,7 @@ class Node {
         Matcher matcherHas;
         Matcher matcherIs;
 
-        System.out.println("Specify a fact that distinguishes " + animal1 + " from " + animal2 + ".");
-        System.out.println(Node.INSTRUCTION1);
+        System.out.printf(Main.getMessagesBundle().getString("statement.prompt"), animal1, animal2);
 
         while (!statementAccepted) {
 
@@ -495,22 +516,20 @@ class Node {
 
             if (matcherCan.matches()) {
                 statementAccepted = true;
-                setScenarioMarkerVerb("can");
-                this.setStatement(userStatement.substring(7));
+                setScenarioMarkerVerb(Main.getPatternsBundle().getString("verb.can"));
+                this.setStatement(userStatement.replaceFirst(Main.getPatternsBundle().getString("pattern.can"), Main.getPatternsBundle().getString("pattern.can.statement")));
             } else if (matcherHas.matches()) {
                 statementAccepted = true;
-                setScenarioMarkerVerb("has");
-                this.setStatement(userStatement.substring(7));
+                setScenarioMarkerVerb(Main.getPatternsBundle().getString("verb.has"));
+                this.setStatement(userStatement.replaceFirst(Main.getPatternsBundle().getString("pattern.has"), Main.getPatternsBundle().getString("pattern.has.statement")));
             } else if (matcherIs.matches()) {
                 statementAccepted = true;
-                setScenarioMarkerVerb("is");
-                this.setStatement(userStatement.substring(6));
+                setScenarioMarkerVerb(Main.getPatternsBundle().getString("verb.is"));
+                this.setStatement(userStatement.replaceFirst(Main.getPatternsBundle().getString("pattern.is"), Main.getPatternsBundle().getString("pattern.is.statement")));
             } else {
-                System.out.println("Specify a fact that distinguishes " + animal1 + " from " + animal2 + ".");
-                System.out.println(Node.INSTRUCTION1);
-                System.out.println(Node.INSTRUCTION1_EXAMPLES);
+                System.out.printf(Main.getMessagesBundle().getString("statement.prompt"), animal1, animal2);
+                System.out.println(Main.getMessagesBundle().getString("statement.error"));
             }
-
         }
     }
 
@@ -518,17 +537,19 @@ class Node {
     String getQuestion() {
         return this.getQuestionForm() + Node.removeDot(this.statement) + "?";
     }
+
+
     @JsonIgnore
     private String getQuestionForm() {
         String verb = this.scenarioMarkerVerb;
         String result = null;
 
-        if ("can".equals(verb)) {
-            result = "Can it ";
-        } else if ("has".equals(verb)) {
-            result = "Does it have ";
-        } else if ("is".equals(verb)) {
-            result = "Is it ";
+        if (Main.getPatternsBundle().getString("verb.can").equals(verb)) {
+            result = Main.getPatternsBundle().getString("verb.can.question") + " ";
+        } else if (Main.getPatternsBundle().getString("verb.has").equals(verb)) {
+            result = Main.getPatternsBundle().getString("verb.has.question") + " ";
+        } else if (Main.getPatternsBundle().getString("verb.is").equals(verb)) {
+            result = Main.getPatternsBundle().getString("verb.is.question") + " ";
         }
 
         return result;
@@ -539,12 +560,15 @@ class Node {
         String verb = getScenarioMarkerVerb();
         String result = null;
 
-        if ("can".equals(verb)) {
-            result = isTrue ? " can " : " can't ";
-        } else if ("has".equals(verb)) {
-            result = isTrue ? " has " : " doesn't have ";
-        } else if ("is".equals(verb)) {
-            result = isTrue ? " is " : " isn't ";
+        if (Main.getPatternsBundle().getString("verb.can").equals(verb)) {
+            result = isTrue ? " " + Main.getPatternsBundle().getString("verb.can") + " " :
+                    " " + Main.getPatternsBundle().getString("verb.can.negative") + " ";
+        } else if (Main.getPatternsBundle().getString("verb.has").equals(verb)) {
+            result = isTrue ? " " + Main.getPatternsBundle().getString("verb.has") + " " :
+                    " " + Main.getPatternsBundle().getString("verb.has.negative") + " ";
+        } else if (Main.getPatternsBundle().getString("verb.is").equals(verb)) {
+            result = isTrue ? " " + Main.getPatternsBundle().getString("verb.is") + " " :
+                    " " + Main.getPatternsBundle().getString("verb.is.negative") + " ";
         }
 
         return result;
@@ -554,12 +578,19 @@ class Node {
         String animal1 = this.leftNo.getValue();
         String animal2 = this.rightYes.getValue();
 
-        System.out.println("I learned the following facts about animals:");
-        System.out.println("- The " + Node.removeUndefinedArticle(animal1) +
+        if ("en".equals(Main.getLanguageSelected())) {
+            animal1 = Node.removeUndefinedArticle(animal1);
+            animal2 = Node.removeUndefinedArticle(animal2);
+        }
+
+        System.out.println(Main.getMessagesBundle().getString("game.learned"));
+
+        System.out.println("- " + Main.getMessagesBundle().getString("defined.article.cap") + " " + animal1 +
                 this.getVerb(false) + Node.removeDot(this.statement) + ".");
-        System.out.println("- The " + Node.removeUndefinedArticle(animal2) +
+        System.out.println("- " + Main.getMessagesBundle().getString("defined.article.cap") + " " + animal2 +
                 this.getVerb(true) + Node.removeDot(this.statement) + ".");
-        System.out.println("I can distinguish these animals by asking the question:");
+
+        System.out.println(Main.getMessagesBundle().getString("game.distinguish"));
         System.out.println(this.getQuestion());
     }
 
@@ -576,12 +607,14 @@ class Node {
 
     @JsonIgnore
     static String removeUndefinedArticle(String words) {
-        String[] splitWords = words.split(" ");
-        StringBuilder result = new StringBuilder();
-        for (int i = 1; i < splitWords.length; i++) {
-            result.append(splitWords[i]);
+        String result;
+        if (words.matches("^(an? )(.+)")) {
+            result = words.replaceFirst("^(an? )(.+)", "$2");
+        } else {
+            result = words;
         }
-        return new String(result);
+
+        return result;
     }
 
     void transformNode(Node node1, boolean isYes, Node node2) {
@@ -598,19 +631,28 @@ class Node {
         String nextPrefixYes = null;
         String nextPrefixNo = null;
 
+        //VLSymbol - Vertical Line Symbol
+        String VLSymbol = Main.getMessagesBundle().getString("tree.print.vertical");
+
+        //BrSymbol - Branch Symbol
+        String BrSymbol = Main.getMessagesBundle().getString("tree.print.branch");
+
+        //CoSymbol - CornerSymbol
+        String CoSymbol = Main.getMessagesBundle().getString("tree.print.corner");
+
         if (!this.isLeaf()) {
             System.out.print(prefix);
             System.out.println(this.getQuestion());
             if (prefix.length() == 3) {
-                nextPrefixYes = "  ├ ";
-                nextPrefixNo = "  └ ";
+                nextPrefixYes = "  " + BrSymbol + " ";
+                nextPrefixNo = "  " + CoSymbol + " ";
             } else {
-                if (prefix.matches(".+├.+")) {
-                    nextPrefixYes = prefix.replaceFirst("├", "│├");
-                    nextPrefixNo = prefix.replaceFirst("├", "│└");
-                } else if (prefix.matches(".+└.+")) {
-                    nextPrefixYes = prefix.replaceFirst("└", " ├");
-                    nextPrefixNo = prefix.replaceFirst("└", " └");
+                if (prefix.matches(".+" + BrSymbol + ".+")) {
+                    nextPrefixYes = prefix.replaceFirst( BrSymbol, VLSymbol + BrSymbol);
+                    nextPrefixNo = prefix.replaceFirst( BrSymbol, VLSymbol + CoSymbol);
+                } else if (prefix.matches(".+" + CoSymbol + ".+")) {
+                    nextPrefixYes = prefix.replaceFirst(CoSymbol, " " + BrSymbol);
+                    nextPrefixNo = prefix.replaceFirst(CoSymbol, " " + CoSymbol);
                 }
             }
 
@@ -639,7 +681,6 @@ class AnimalBinaryTree {
     AnimalBinaryTree(Node root) {
         this.root = root;
     }
-
 
     public Node getRoot() {
         return root;
@@ -689,7 +730,7 @@ class AnimalBinaryTree {
     }
 
     public void printPreOrder() {
-        String initialPrefix = " └ ";
+        String initialPrefix = " " + Main.getMessagesBundle().getString("tree.print.corner") + " ";
         this.root.printNodePreOrder(initialPrefix);
     }
 
@@ -795,6 +836,7 @@ class AnimalBinaryTree {
         return resultNode;
     }
 
+
     public void printFactsAbout(Node isSuchAnAnimal) {
         Node currentNode = isSuchAnAnimal;
         Node nextNode = currentNode.getParent();
@@ -803,9 +845,11 @@ class AnimalBinaryTree {
         while (Objects.nonNull(nextNode)) {
 
             if (currentNode.equals(nextNode.getLeftNo())) {
-                facts.push("- It" + nextNode.getVerb(false) + Node.removeDot(nextNode.getStatement()) + ".");
+                facts.push("- " + Main.getPatternsBundle().getString("pattern.it.capital") +
+                        nextNode.getVerb(false) + Node.removeDot(nextNode.getStatement()) + ".");
             } else {
-                facts.push("- It" + nextNode.getVerb(true) + Node.removeDot(nextNode.getStatement()) + ".");
+                facts.push("- " + Main.getPatternsBundle().getString("pattern.it.capital") +
+                        nextNode.getVerb(true) + Node.removeDot(nextNode.getStatement()) + ".");
             }
 
             currentNode = nextNode;
@@ -879,9 +923,8 @@ class AnimalBinaryTree {
         }
         double averageDepth = (double) sumOfDepths / leavesCounter;
         setAverageDepth(averageDepth);
-
-
     }
+
     private Integer getNodeDepth(Node leafNode) {
         Node currentNode = leafNode;
         Node nextNode = currentNode.getParent();
@@ -892,7 +935,6 @@ class AnimalBinaryTree {
             currentNode = nextNode;
             nextNode = currentNode.getParent();
         }
-
         return depth;
     }
 }
